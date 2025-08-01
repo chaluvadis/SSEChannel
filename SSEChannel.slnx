@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="SSEChannel.Aspire.AppHost/SSEChannel.Aspire.AppHost.csproj" Id="83178497-f7c1-4134-b527-6f7b98dae462" />
+  <Project Path="SSEChannel.Aspire.ServiceDefaults/SSEChannel.Aspire.ServiceDefaults.csproj" Id="53231ad2-1339-4df0-bf8d-8828cda8ba48" />
+  <Project Path="SSEChannel.Core/SSEChannel.Core.csproj" />
+  <Project Path="SSEChannel.Test/SSEChannel.Test.csproj" />
+</Solution>
