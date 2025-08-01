@@ -1,0 +1,376 @@
+@page
+@model SSEChannel.Core.Pages.ScalabilityModel
+@{
+    ViewData["Title"] = "Scalability Test";
+}
+<style>
+    .stats {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 20px;
+        margin: 20px 0;
+    }
+
+    .stat-card {
+        border: 1px solid #ccc;
+        padding: 15px;
+        border-radius: 5px;
+        background: #f9f9f9;
+    }
+
+    .stat-value {
+        font-size: 2em;
+        font-weight: bold;
+        color: #2196F3;
+    }
+
+    .controls {
+        margin: 20px 0;
+    }
+
+        .controls button {
+            padding: 10px 20px;
+            margin: 5px;
+            font-size: 16px;
+        }
+
+    .messages {
+        border: 1px solid #ccc;
+        height: 400px;
+        overflow-y: auto;
+        padding: 10px;
+        margin: 10px 0;
+        font-family: monospace;
+        font-size: 12px;
+    }
+
+    .message {
+        margin: 2px 0;
+    }
+
+    .error {
+        color: red;
+    }
+
+    .success {
+        color: green;
+    }
+
+    .info {
+        color: blue;
+    }
+
+    .warning {
+        color: orange;
+    }
+
+    input[type="number"] {
+        width: 100px;
+        padding: 5px;
+    }
+
+    .performance-metrics {
+        background: #e8f5e8;
+        padding: 15px;
+        border-radius: 5px;
+        margin: 10px 0;
+    }
+</style>
+
+<div class="container text-center">
+    <h1>SSEChannel - Scalling to Million Clients</h1>
+    <div class="stats">
+        <div class="stat-card">
+            <div class="stat-value" id="connectionCount">0</div>
+            <div>Active Connections</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="messagesPerSecond">0</div>
+            <div>Messages/Second</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="totalMessages">0</div>
+            <div>Total Messages</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="errorCount">0</div>
+            <div>Connection Errors</div>
+        </div>
+    </div>
+
+    <div class="performance-metrics">
+        <h3>Performance Metrics</h3>
+        <div>Memory Usage: <span id="memoryUsage">-</span></div>
+        <div>Connection Latency: <span id="latency">-</span>ms</div>
+        <div>Reconnection Rate: <span id="reconnectionRate">-</span>%</div>
+    </div>
+
+    <div class="controls">
+        <label>
+            Concurrent Connections:
+            <input type="number" id="connectionTarget" value="100" min="1" max="10000">
+        </label>
+        <button onclick="startLoadTest()">Start Load Test</button>
+        <button onclick="stopLoadTest()">Stop Load Test</button>
+        <button onclick="clearMessages()">Clear Messages</button>
+        <button onclick="getServerStats()">Get Server Stats</button>
+    </div>
+
+    <div class="controls">
+        <button onclick="joinAdminGroup()">Join Admin Group</button>
+        <button onclick="sendBroadcast()">Send Test Broadcast</button>
+        <input type="text" id="broadcastMessage" placeholder="Broadcast message" value="Test message from client">
+    </div>
+
+    <div id="messages" class="messages"></div>
+</div>
+
+<script type="text/javascript">
+    let connections = [];
+    let isLoadTesting = false;
+    let totalMessages = 0;
+    let errorCount = 0;
+    let startTime = Date.now();
+    let lastMessageTime = Date.now();
+
+    class ScalableSSEConnection {
+        constructor(id) {
+            this.id = id;
+            this.connectionId = null;
+            this.eventSource = null;
+            this.connected = false;
+            this.messageCount = 0;
+            this.lastPingTime = Date.now();
+        }
+
+        async connect() {
+            try {
+                const connectStart = Date.now();
+                this.eventSource = new EventSource(`/api/notifications/stream?admin=true`);
+
+                this.eventSource.addEventListener('connected', (event) => {
+                    this.connectionId = event.data;
+                    this.connected = true;
+                    const latency = Date.now() - connectStart;
+                    updateLatency(latency);
+                    addMessage(`Connection ${this.id}: Connected as ${this.connectionId}`, 'success');
+                });
+
+                this.eventSource.addEventListener('message', (event) => {
+                    this.messageCount++;
+                    totalMessages++;
+                    this.lastPingTime = Date.now();
+                    lastMessageTime = Date.now();
+
+                    if (this.messageCount % 100 === 0) { // Log every 100th message to avoid spam
+                        addMessage(`Connection ${this.id}: ${event.data}`, 'info');
+                    }
+                });
+
+                this.eventSource.addEventListener('error', (event) => {
+                    this.connected = false;
+                    errorCount++;
+                    addMessage(`Connection ${this.id}: Error occurred`, 'error');
+
+                    // Auto-reconnect after 5 seconds
+                    setTimeout(() => {
+                        if (isLoadTesting) {
+                            this.reconnect();
+                        }
+                    }, 5000);
+                });
+
+            } catch (error) {
+                errorCount++;
+                addMessage(`Connection ${this.id}: Failed to connect - ${error.message}`, 'error');
+            }
+        }
+
+        async reconnect() {
+            this.disconnect();
+            await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
+            await this.connect();
+        }
+
+        disconnect() {
+            if (this.eventSource) {
+                this.eventSource.close();
+                this.eventSource = null;
+            }
+            this.connected = false;
+        }
+
+        isHealthy() {
+            return this.connected && (Date.now() - this.lastPingTime) < 30000; // 30 second timeout
+        }
+    }
+
+    async function startLoadTest() {
+        if (isLoadTesting) return;
+
+        isLoadTesting = true;
+        const targetConnections = parseInt(document.getElementById('connectionTarget').value);
+
+        addMessage(`Starting load test with ${targetConnections} connections...`, 'info');
+
+        // Create connections in batches to avoid overwhelming the browser
+        const batchSize = 10;
+        for (let i = 0; i < targetConnections; i += batchSize) {
+            const batch = Math.min(batchSize, targetConnections - i);
+
+            for (let j = 0; j < batch; j++) {
+                const connection = new ScalableSSEConnection(i + j + 1);
+                connections.push(connection);
+                connection.connect();
+            }
+
+            // Small delay between batches
+            await new Promise(resolve => setTimeout(resolve, 100));
+            updateStats();
+        }
+
+        // Start monitoring
+        startMonitoring();
+    }
+
+    function stopLoadTest() {
+        isLoadTesting = false;
+
+        connections.forEach(conn => conn.disconnect());
+        connections = [];
+
+        addMessage('Load test stopped. All connections closed.', 'warning');
+        updateStats();
+    }
+
+    function startMonitoring() {
+        const interval = setInterval(() => {
+            if (!isLoadTesting) {
+                clearInterval(interval);
+                return;
+            }
+
+            updateStats();
+            checkConnectionHealth();
+
+        }, 1000); // Update every second
+    }
+
+    function checkConnectionHealth() {
+        const unhealthyConnections = connections.filter(conn => !conn.isHealthy());
+
+        if (unhealthyConnections.length > 0) {
+            addMessage(`${unhealthyConnections.length} unhealthy connections detected. Attempting reconnection...`, 'warning');
+
+            unhealthyConnections.forEach(conn => {
+                if (isLoadTesting) {
+                    conn.reconnect();
+                }
+            });
+        }
+    }
+
+    function updateStats() {
+        const activeConnections = connections.filter(conn => conn.connected).length;
+        const timeDiff = (Date.now() - startTime) / 1000;
+        const messagesPerSecond = timeDiff > 0 ? Math.round(totalMessages / timeDiff) : 0;
+        const reconnectionRate = connections.length > 0 ?
+            Math.round((errorCount / connections.length) * 100) : 0;
+
+        document.getElementById('connectionCount').textContent = activeConnections;
+        document.getElementById('messagesPerSecond').textContent = messagesPerSecond;
+        document.getElementById('totalMessages').textContent = totalMessages;
+        document.getElementById('errorCount').textContent = errorCount;
+        document.getElementById('reconnectionRate').textContent = reconnectionRate;
+
+        // Update memory usage if available
+        if (performance.memory) {
+            const memoryMB = Math.round(performance.memory.usedJSHeapSize / 1024 / 1024);
+            document.getElementById('memoryUsage').textContent = `${memoryMB} MB`;
+        }
+    }
+
+    function updateLatency(latency) {
+        document.getElementById('latency').textContent = latency;
+    }
+
+    async function getServerStats() {
+        try {
+            const response = await fetch('/api/notifications/stats');
+            const stats = await response.json();
+
+            addMessage(`Server Stats: ${JSON.stringify(stats, null, 2)}`, 'info');
+        } catch (error) {
+            addMessage(`Failed to get server stats: ${error.message}`, 'error');
+        }
+    }
+
+    async function joinAdminGroup() {
+        if (connections.length === 0) {
+            addMessage('No connections available to join admin group', 'warning');
+            return;
+        }
+
+        const firstConnection = connections.find(conn => conn.connected);
+        if (!firstConnection) {
+            addMessage('No active connections available', 'warning');
+            return;
+        }
+
+        try {
+            const response = await fetch('/api/notifications/groups/admin/join', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ connectionId: firstConnection.connectionId })
+            });
+
+            if (response.ok) {
+                addMessage('Joined admin group successfully', 'success');
+            } else {
+                addMessage('Failed to join admin group', 'error');
+            }
+        } catch (error) {
+            addMessage(`Error joining admin group: ${error.message}`, 'error');
+        }
+    }
+
+    async function sendBroadcast() {
+        const message = document.getElementById('broadcastMessage').value;
+        if (!message) return;
+
+        try {
+            const response = await fetch('/api/notifications/broadcast/all', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message: message })
+            });
+
+            if (response.ok) {
+                addMessage(`Broadcast sent: ${message}`, 'success');
+            } else {
+                addMessage('Failed to send broadcast', 'error');
+            }
+        } catch (error) {
+            addMessage(`Error sending broadcast: ${error.message}`, 'error');
+        }
+    }
+
+    function clearMessages() {
+        document.getElementById('messages').innerHTML = '';
+    }
+
+    function addMessage(text, type = 'info') {
+        const messages = document.getElementById('messages');
+        const div = document.createElement('div');
+        div.className = `message ${type}`;
+        div.textContent = `[${new Date().toLocaleTimeString()}] ${text}`;
+        messages.appendChild(div);
+        messages.scrollTop = messages.scrollHeight;
+    }
+
+    // Initialize
+    updateStats();
+
+    // Auto-refresh server stats every 10 seconds
+    setInterval(getServerStats, 10000);
+</script>
