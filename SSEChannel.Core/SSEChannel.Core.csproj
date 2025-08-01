@@ -1,0 +1,12 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>Preview</LangVersion>
+    <Nullable>enable</Nullable>
+    <UserSecretsId>938cd3a2-c9a3-4523-a872-21ec4e34896d</UserSecretsId>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\SSEChannel.Aspire.ServiceDefaults\SSEChannel.Aspire.ServiceDefaults.csproj" />
+  </ItemGroup>
+</Project>
