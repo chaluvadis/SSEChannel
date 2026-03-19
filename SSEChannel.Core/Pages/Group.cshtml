@@ -1,0 +1,606 @@
+@page
+@using SSEChannel.Core.Pages
+@model GroupModel
+@{
+    ViewData["Title"] = "Group Management";
+}
+
+<style scoped>
+    .section {
+        margin: 30px 0;
+        padding: 20px;
+        border: 1px solid #e0e0e0;
+        border-radius: 6px;
+        background: #fafafa;
+    }
+
+        .section h3 {
+            margin-top: 0;
+            color: #333;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 10px;
+        }
+
+    .form-group {
+        margin: 15px 0;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+        .form-group label {
+            min-width: 120px;
+            font-weight: 500;
+        }
+
+    input, button, select {
+        padding: 10px;
+        margin: 5px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 14px;
+    }
+
+        input[type="text"] {
+            width: 250px;
+        }
+
+    button {
+        background: #007acc;
+        color: white;
+        border: none;
+        cursor: pointer;
+        font-weight: 500;
+        transition: background-color 0.2s;
+    }
+
+        button:hover {
+            background: #005a9e;
+        }
+
+        button.secondary {
+            background: #6c757d;
+        }
+
+            button.secondary:hover {
+                background: #545b62;
+            }
+
+        button.danger {
+            background: #dc3545;
+        }
+
+            button.danger:hover {
+                background: #c82333;
+            }
+
+    .results {
+        border: 1px solid #ddd;
+        height: 300px;
+        overflow-y: auto;
+        padding: 15px;
+        margin: 15px 0;
+        font-family: 'Courier New', monospace;
+        font-size: 12px;
+        background: white;
+        border-radius: 4px;
+    }
+
+    .message {
+        margin: 5px 0;
+        padding: 8px;
+        border-radius: 4px;
+    }
+
+    .success {
+        background: #d4edda;
+        color: #155724;
+        border: 1px solid #c3e6cb;
+    }
+
+    .error {
+        background: #f8d7da;
+        color: #721c24;
+        border: 1px solid #f5c6cb;
+    }
+
+    .info {
+        background: #d1ecf1;
+        color: #0c5460;
+        border: 1px solid #bee5eb;
+    }
+
+    .warning {
+        background: #fff3cd;
+        color: #856404;
+        border: 1px solid #ffeaa7;
+    }
+
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 15px;
+        margin: 20px 0;
+    }
+
+    .stat-card {
+        background: white;
+        padding: 15px;
+        border-radius: 6px;
+        border: 1px solid #e0e0e0;
+        text-align: center;
+    }
+
+    .stat-value {
+        font-size: 2em;
+        font-weight: bold;
+        color: #007acc;
+    }
+
+    .stat-label {
+        color: #666;
+        font-size: 0.9em;
+        margin-top: 5px;
+    }
+
+    .group-list {
+        max-height: 200px;
+        overflow-y: auto;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        background: white;
+    }
+
+    .group-item {
+        padding: 10px;
+        border-bottom: 1px solid #eee;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+        .group-item:last-child {
+            border-bottom: none;
+        }
+
+        .group-item:hover {
+            background: #f8f9fa;
+        }
+
+    .member-count {
+        background: #007acc;
+        color: white;
+        padding: 2px 8px;
+        border-radius: 12px;
+        font-size: 0.8em;
+    }
+
+    .toolbar {
+        display: flex;
+        gap: 10px;
+        margin: 15px 0;
+        flex-wrap: wrap;
+    }
+</style>
+
+<div class="container text-center">
+    <h1>🔗 Group Notifications - SSE to Group channels</h1>
+    <!-- Connection Setup -->
+    <div class="section">
+        <h3>🔌 Connection Setup</h3>
+        <div class="form-group">
+            <label>Connection ID:</label>
+            <input type="text" id="connectionId" placeholder="Enter connection ID or leave empty for auto-generation">
+            <button onclick="generateConnectionId()">Generate ID</button>
+        </div>
+    </div>
+
+    <!-- Group Operations -->
+    <div class="section">
+        <h3>👥 Group Operations</h3>
+        <div class="form-group">
+            <label>Group Name:</label>
+            <input type="text" id="groupName" placeholder="Enter group name">
+            <button onclick="joinGroup()">Join Group</button>
+            <button onclick="leaveGroup()" class="secondary">Leave Group</button>
+        </div>
+        <div class="form-group">
+            <label>Broadcast Message:</label>
+            <input type="text" id="broadcastMessage" placeholder="Enter message to broadcast">
+            <button onclick="broadcastToGroup()">Broadcast to Group</button>
+        </div>
+    </div>
+
+    <!-- Group Information -->
+    <div class="section">
+        <h3>📊 Group Information</h3>
+        <div class="toolbar">
+            <button onclick="getAllGroups()">Get All Groups</button>
+            <button onclick="getGroupStatistics()">Get Statistics</button>
+            <button onclick="getConnectionGroups()">Get My Groups</button>
+            <button onclick="cleanupEmptyGroups()" class="danger">Cleanup Empty Groups</button>
+        </div>
+
+        <div class="form-group">
+            <label>Query Group:</label>
+            <input type="text" id="queryGroupName" placeholder="Enter group name to query">
+            <button onclick="getGroupInfo()">Get Group Info</button>
+            <button onclick="getGroupMembers()">Get Members</button>
+            <button onclick="checkGroupExists()">Check Exists</button>
+        </div>
+    </div>
+
+    <!-- Statistics Display -->
+    <div class="section">
+        <h3>📈 Live Statistics</h3>
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-value" id="totalGroups">-</div>
+                <div class="stat-label">Total Groups</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="totalMembers">-</div>
+                <div class="stat-label">Total Members</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="myGroups">-</div>
+                <div class="stat-label">My Groups</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="largestGroup">-</div>
+                <div class="stat-label">Largest Group</div>
+            </div>
+        </div>
+        <button onclick="refreshStatistics()">Refresh Statistics</button>
+    </div>
+
+    <!-- Group List -->
+    <div class="section">
+        <h3>📋 Active Groups</h3>
+        <div id="groupList" class="group-list">
+            <div class="group-item">No groups loaded. Click "Get All Groups" to refresh.</div>
+        </div>
+    </div>
+
+    <!-- Results Display -->
+    <div class="section">
+        <h3>📝 Operation Results</h3>
+        <div class="toolbar">
+            <button onclick="clearResults()">Clear Results</button>
+            <button onclick="exportResults()">Export Results</button>
+        </div>
+        <div id="results" class="results"></div>
+    </div>
+</div>
+
+<script type="text/javascript">
+    let currentConnectionId = null;
+
+    function generateConnectionId() {
+        currentConnectionId = `conn-${crypto.randomUUID()}`;
+        document.getElementById('connectionId').value = currentConnectionId;
+        addMessage(`Generated connection ID: ${currentConnectionId}`, 'info');
+    }
+
+    function getConnectionId() {
+        const input = document.getElementById('connectionId').value.trim();
+        if (input) {
+            currentConnectionId = input;
+            return input;
+        }
+        if (!currentConnectionId) {
+            generateConnectionId();
+        }
+        return currentConnectionId;
+    }
+
+    async function joinGroup() {
+        const groupName = document.getElementById('groupName').value.trim();
+        const connectionId = getConnectionId();
+
+        if (!groupName) {
+            addMessage('Please enter a group name', 'error');
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/groups/${groupName}/join`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ connectionId: connectionId })
+            });
+
+            const result = await response.json();
+            if (result.success) {
+                addMessage(`✅ ${result.message}`, 'success');
+                refreshStatistics();
+            } else {
+                addMessage(`❌ ${result.message}`, 'error');
+            }
+        } catch (error) {
+            addMessage(`❌ Error joining group: ${error.message}`, 'error');
+        }
+    }
+
+    async function leaveGroup() {
+        const groupName = document.getElementById('groupName').value.trim();
+        const connectionId = getConnectionId();
+
+        if (!groupName) {
+            addMessage('Please enter a group name', 'error');
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/groups/${groupName}/leave`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ connectionId: connectionId })
+            });
+
+            const result = await response.json();
+            if (result.success) {
+                addMessage(`✅ ${result.message}`, 'success');
+                refreshStatistics();
+            } else {
+                addMessage(`❌ ${result.message}`, 'error');
+            }
+        } catch (error) {
+            addMessage(`❌ Error leaving group: ${error.message}`, 'error');
+        }
+    }
+
+    async function broadcastToGroup() {
+        const groupName = document.getElementById('groupName').value.trim();
+        const message = document.getElementById('broadcastMessage').value.trim();
+
+        if (!groupName || !message) {
+            addMessage('Please enter both group name and message', 'error');
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/groups/${groupName}/broadcast`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message: message })
+            });
+
+            const result = await response.json();
+            if (result.success) {
+                addMessage(`📢 Broadcast sent to ${result.memberCount} members in '${result.groupName}'`, 'success');
+            } else {
+                addMessage(`❌ ${result.message}`, 'error');
+            }
+        } catch (error) {
+            addMessage(`❌ Error broadcasting: ${error.message}`, 'error');
+        }
+    }
+
+    async function getAllGroups() {
+        try {
+            const response = await fetch('/api/groups/');
+            const result = await response.json();
+
+            if (result.success) {
+                addMessage(`📋 Found ${result.totalCount} groups: ${result.groups.join(', ')}`, 'info');
+                updateGroupList(result.groups);
+            } else {
+                addMessage(`❌ ${result.error}`, 'error');
+            }
+        } catch (error) {
+            addMessage(`❌ Error getting groups: ${error.message}`, 'error');
+        }
+    }
+
+    async function getGroupStatistics() {
+        try {
+            const response = await fetch('/api/groups/statistics');
+            const result = await response.json();
+
+            if (result.success) {
+                addMessage(`📊 Statistics: ${result.totalGroups} groups, ${result.totalMembers} total members`, 'info');
+                updateStatistics(result);
+
+                // Show detailed breakdown
+                const breakdown = Object.entries(result.statistics)
+                    .map(([group, count]) => `${group}: ${count}`)
+                    .join(', ');
+                addMessage(`📈 Group breakdown: ${breakdown}`, 'info');
+            } else {
+                addMessage(`❌ ${result.error}`, 'error');
+            }
+        } catch (error) {
+            addMessage(`❌ Error getting statistics: ${error.message}`, 'error');
+        }
+    }
+
+    async function getConnectionGroups() {
+        const connectionId = getConnectionId();
+
+        try {
+            const response = await fetch(`/api/groups/connections/${connectionId}/groups`);
+            const result = await response.json();
+
+            if (result.success) {
+                addMessage(`👤 Connection ${connectionId} is in ${result.groupCount} groups: ${result.groups.join(', ')}`, 'info');
+                document.getElementById('myGroups').textContent = result.groupCount;
+            } else {
+                addMessage(`❌ ${result.error}`, 'error');
+            }
+        } catch (error) {
+            addMessage(`❌ Error getting connection groups: ${error.message}`, 'error');
+        }
+    }
+
+    async function getGroupInfo() {
+        const groupName = document.getElementById('queryGroupName').value.trim();
+
+        if (!groupName) {
+            addMessage('Please enter a group name to query', 'error');
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/groups/${groupName}`);
+            const result = await response.json();
+
+            if (result.success) {
+                if (result.exists) {
+                    addMessage(`ℹ️ Group '${result.groupName}' has ${result.memberCount} members: ${result.members.join(', ')}`, 'info');
+                } else {
+                    addMessage(`❌ Group '${result.groupName}' does not exist`, 'warning');
+                }
+            } else {
+                addMessage(`❌ ${result.error}`, 'error');
+            }
+        } catch (error) {
+            addMessage(`❌ Error getting group info: ${error.message}`, 'error');
+        }
+    }
+
+    async function getGroupMembers() {
+        const groupName = document.getElementById('queryGroupName').value.trim();
+
+        if (!groupName) {
+            addMessage('Please enter a group name to query', 'error');
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/groups/${groupName}/members`);
+            const result = await response.json();
+
+            if (result.success) {
+                addMessage(`👥 Group '${result.groupName}' members (${result.memberCount}): ${result.members.join(', ')}`, 'info');
+            } else {
+                addMessage(`❌ ${result.error}`, 'error');
+            }
+        } catch (error) {
+            addMessage(`❌ Error getting group members: ${error.message}`, 'error');
+        }
+    }
+
+    async function checkGroupExists() {
+        const groupName = document.getElementById('queryGroupName').value.trim();
+
+        if (!groupName) {
+            addMessage('Please enter a group name to check', 'error');
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/groups/${groupName}/exists`);
+            const result = await response.json();
+
+            if (result.success) {
+                const status = result.exists ? '✅ exists' : '❌ does not exist';
+                addMessage(`Group '${result.groupName}' ${status}`, result.exists ? 'success' : 'warning');
+            } else {
+                addMessage(`❌ ${result.error}`, 'error');
+            }
+        } catch (error) {
+            addMessage(`❌ Error checking group existence: ${error.message}`, 'error');
+        }
+    }
+
+    async function cleanupEmptyGroups() {
+        if (!confirm('Are you sure you want to cleanup all empty groups? This action cannot be undone.')) {
+            return;
+        }
+
+        try {
+            const response = await fetch('/api/groups/maintenance/cleanup', {
+                method: 'POST'
+            });
+            const result = await response.json();
+
+            if (result.success) {
+                addMessage(`🧹 ${result.message}`, 'success');
+                refreshStatistics();
+            } else {
+                addMessage(`❌ ${result.message}`, 'error');
+            }
+        } catch (error) {
+            addMessage(`❌ Error during cleanup: ${error.message}`, 'error');
+        }
+    }
+
+    async function refreshStatistics() {
+        await getGroupStatistics();
+        await getConnectionGroups();
+        await getAllGroups();
+    }
+
+    function updateStatistics(stats) {
+        document.getElementById('totalGroups').textContent = stats.totalGroups;
+        document.getElementById('totalMembers').textContent = stats.totalMembers;
+
+        // Find largest group
+        const largest = Object.entries(stats.statistics)
+            .reduce((max, [group, count]) => count > max.count ? {group, count} : max, {group: '-', count: 0});
+        document.getElementById('largestGroup').textContent = largest.count > 0 ? `${largest.group} (${largest.count})` : '-';
+    }
+
+    function updateGroupList(groups) {
+        const groupList = document.getElementById('groupList');
+        if (groups.length === 0) {
+            groupList.innerHTML = '<div class="group-item">No active groups</div>';
+            return;
+        }
+
+        groupList.innerHTML = groups.map(group => `
+            <div class="group-item">
+                <span>${group}</span>
+                <span class="member-count" id="count-${group}">Loading...</span>
+            </div>
+        `).join('');
+
+        // Load member counts for each group
+        groups.forEach(async (group) => {
+            try {
+                const response = await fetch(`/api/groups/${group}/count`);
+                const result = await response.json();
+                if (result.success) {
+                    document.getElementById(`count-${group}`).textContent = result.memberCount;
+                }
+            } catch (error) {
+                document.getElementById(`count-${group}`).textContent = '?';
+            }
+        });
+    }
+
+    function addMessage(text, type = 'info') {
+        const results = document.getElementById('results');
+        const div = document.createElement('div');
+        div.className = `message ${type}`;
+        div.textContent = `[${new Date().toLocaleTimeString()}] ${text}`;
+        results.appendChild(div);
+        results.scrollTop = results.scrollHeight;
+    }
+
+    function clearResults() {
+        document.getElementById('results').innerHTML = '';
+    }
+
+    function exportResults() {
+        const results = document.getElementById('results').innerText;
+        const blob = new Blob([results], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `group-management-log-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.txt`;
+        a.click();
+        URL.revokeObjectURL(url);
+    }
+
+    // Initialize
+    window.onload = function() {
+        generateConnectionId();
+        addMessage('Group Management System initialized', 'success');
+        addMessage('Click "Get All Groups" to see existing groups', 'info');
+    };
+
+    // Auto-refresh statistics every 30 seconds
+    setInterval(refreshStatistics, 30000);
+</script>
