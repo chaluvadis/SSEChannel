@@ -166,8 +166,13 @@ public sealed class SseChannelService : ISseChannel, IHostedService, IDisposable
             _clientStore.Broadcast(ch, ping);
     }
 
-    private static string FormatSseEvent(string id, string eventName, string data) =>
-        $"id: {id}\nevent: {eventName}\ndata: {data}\n\n";
+    private static string FormatSseEvent(string id, string eventName, string data)
+    {
+        // Strip any newlines from field values to prevent SSE header injection.
+        var safeId = id.Replace("\r", "").Replace("\n", "");
+        var safeEvent = eventName.Replace("\r", "").Replace("\n", "");
+        return $"id: {safeId}\nevent: {safeEvent}\ndata: {data}\n\n";
+    }
 
     private static void ConfigureSseHeaders(HttpContext context)
     {
