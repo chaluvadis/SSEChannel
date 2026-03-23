@@ -1,0 +1,23 @@
+## .NET / MSBuild build artifacts
+[Bb]in/
+[Oo]bj/
+*.user
+*.suo
+*.vs/
+.vs/
+
+## NuGet packages (restored, not committed)
+packages/
+*.nupkg
+*.snupkg
+project.lock.json
+project.fragment.lock.json
+
+## Rider / JetBrains
+.idea/
+
+## VS Code
+.vscode/
+
+## macOS
+.DS_Store

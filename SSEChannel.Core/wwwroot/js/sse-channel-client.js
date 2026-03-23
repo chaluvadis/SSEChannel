@@ -101,11 +101,9 @@ class SseChannelClient {
     // ── Private ────────────────────────────────────────────────────────────────
 
     _openEventSource() {
-        const url = this._lastEventId
-            ? `${this._channelPath}` // Browser's EventSource sends Last-Event-ID automatically
-            : this._channelPath;
-
-        this._es = new EventSource(url);
+        // EventSource automatically sends the Last-Event-ID header on reconnect,
+        // so we always use the base channel path.
+        this._es = new EventSource(this._channelPath);
 
         this._es.onopen = () => {
             this._reconnectAttempt = 0;

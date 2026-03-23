@@ -9,7 +9,7 @@ namespace SSEChannel.Core.Backplane;
 public sealed class RedisChannelBackplane : IChannelBackplane
 {
     private readonly ISubscriber _subscriber;
-    private readonly ConcurrentDictionary<string, Action<RedisChannel, RedisValue>> _subscriptions = new();
+    private readonly ConcurrentDictionary<string, Func<RedisChannel, RedisValue, Task>> _subscriptions = new();
     private readonly ILogger<RedisChannelBackplane> _logger;
 
     public RedisChannelBackplane(IConnectionMultiplexer redis, ILogger<RedisChannelBackplane> logger)
@@ -21,7 +21,7 @@ public sealed class RedisChannelBackplane : IChannelBackplane
     public async Task SubscribeAsync(string channelName, Func<string, Task> handler, CancellationToken ct = default)
     {
         var redisChannel = new RedisChannel(channelName, RedisChannel.PatternMode.Literal);
-        Action<RedisChannel, RedisValue> redisHandler = async (_, value) =>
+        Func<RedisChannel, RedisValue, Task> redisHandler = async (_, value) =>
         {
             try { await handler(value.ToString()); }
             catch (Exception ex)
@@ -30,7 +30,7 @@ public sealed class RedisChannelBackplane : IChannelBackplane
             }
         };
         _subscriptions[channelName] = redisHandler;
-        await _subscriber.SubscribeAsync(redisChannel, redisHandler);
+        await _subscriber.SubscribeAsync(redisChannel, (ch, val) => _ = redisHandler(ch, val));
     }
 
     public async Task PublishAsync(string channelName, string message, CancellationToken ct = default)
