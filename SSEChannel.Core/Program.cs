@@ -63,6 +63,12 @@ builder.Services.AddOutputCache(options =>
 // Add services to the container.
 builder.Services.AddRazorPages();
 
+// New SSE Channel system
+builder.Services.AddSseChannels(options =>
+{
+    builder.Configuration.GetSection(SseOptions.SectionName).Bind(options);
+});
+
 // Add custom health checks
 builder
     .Services.AddHealthChecks()
@@ -91,6 +97,7 @@ app.UseOutputCache();
 app.MapScalableNotificationRoutes(); // Scalable routes
 app.MapGroupNotificationRoutes(); // Dedicated group management routes
 app.MapNotificationRoutes(); // Legacy routes for backward compatibility
+app.MapSseChannels(); // New SSE Channel system
 
 app.UseAuthorization();
 
