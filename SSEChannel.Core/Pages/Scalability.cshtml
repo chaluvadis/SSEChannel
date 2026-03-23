@@ -146,13 +146,21 @@
         async connect() {
             try {
                 const connectStart = Date.now();
-                this.eventSource = new EventSource(`/api/notifications/stream?admin=true`);
+                const digits = "0123456789";
+                let uniqueId = "";
+                const values = new Uint8Array(8);
+                crypto.getRandomValues(values);
+                for (let i = 0; i < 8; i++) {
+                    uniqueId += digits[values[i] % 10];
+                }
+                this.eventSource = new EventSource(`/api/notifications/stream/${uniqueId}`);
 
                 this.eventSource.addEventListener('connected', (event) => {
                     this.connectionId = event.data;
                     this.connected = true;
                     const latency = Date.now() - connectStart;
                     updateLatency(latency);
+                    console.log(`Connection ${this.id}: Connected as ${this.connectionId}`);
                     addMessage(`Connection ${this.id}: Connected as ${this.connectionId}`, 'success');
                 });
 
@@ -318,7 +326,7 @@
         }
 
         try {
-            const response = await fetch('/api/notifications/groups/admin/join', {
+            const response = await fetch('/api/groups/admin/join', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ connectionId: firstConnection.connectionId })

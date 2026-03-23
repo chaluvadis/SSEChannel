@@ -92,11 +92,10 @@ public static class ScalableNotificationRoutes
         }
         finally
         {
-            // Clean up connection
-            if (connectionId != null)
+            if (actualConnectionId != null)
             {
-                await notificationService.DisconnectAsync(connectionId);
-                logger.LogDebug("SSE connection cleaned up: {ConnectionId}", connectionId);
+                await notificationService.DisconnectAsync(actualConnectionId);
+                logger.LogDebug("SSE connection cleaned up: {ConnectionId}", actualConnectionId);
             }
         }
     }
